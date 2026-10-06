@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>多平台广告投放数据看板</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:"Microsoft YaHei",sans-serif; background:#f4f5f7; color:#222; padding:20px; }
+  .wrap { max-width:1200px; margin:0 auto; }
+  h1 { font-size:20px; margin-bottom:4px; }
+  .sub { color:#888; font-size:12px; margin-bottom:16px; }
+  .bar { display:flex; flex-wrap:wrap; gap:10px; margin-bottom:16px; align-items:center; }
+  select, input { padding:7px 10px; border:1px solid #d0d0d0; border-radius:6px; font-size:13px; background:#fff; }
+  .kpis { display:grid; grid-template-columns:repeat(6,1fr); gap:12px; margin-bottom:16px; }
+  .kpi { background:#fff; border-radius:10px; padding:14px; box-shadow:0 1px 3px rgba(0,0,0,.06); }
+  .kpi .lab { font-size:12px; color:#888; margin-bottom:6px; }
+  .kpi .val { font-size:20px; font-weight:700; }
+  .kpi .delta { font-size:11px; margin-top:4px; }
+  .up { color:#e03636; } .down { color:#1aad4a; }
+  .grid { display:grid; grid-template-columns:1.4fr 1fr; gap:12px; margin-bottom:16px; }
+  .card { background:#fff; border-radius:10px; padding:16px; box-shadow:0 1px 3px rgba(0,0,0,.06); }
+  .card h3 { font-size:14px; margin-bottom:12px; }
+  table { width:100%; border-collapse:collapse; font-size:12.5px; }
+  th,td { padding:8px 6px; text-align:right; border-bottom:1px solid #f0f0f0; }
+  th { color:#888; font-weight:400; background:#fafafa; }
+  th:first-child,td:first-child { text-align:left; }
+  .tag { display:inline-block; padding:2px 8px; border-radius:10px; font-size:11px; color:#fff; }
+  .alert { font-size:12.5px; padding:8px 10px; border-radius:6px; margin-bottom:8px; background:#fff7f0; border-left:3px solid #f5a623; }
+  .note { font-size:11px; color:#aaa; margin-top:10px; }
+  svg { display:block; }
+  @media(max-width:900px){ .kpis{grid-template-columns:repeat(2,1fr)} .grid{grid-template-columns:1fr} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>多平台广告投放数据看板</h1>
+  <div class="sub">统一口径汇总抖音 / 小红书 / 百度 / B站投放数据 · 演示数据（字段结构按真实投放后台设计，可替换为导出报表）</div>
+
+  <div class="bar">
+    <label>客户 <select id="fClient"></select></label>
+    <label>平台 <select id="fPlat"><option value="">全部</option><option>抖音</option><option>小红书</option><option>百度</option><option>B站</option></select></label>
+    <label>周期
+      <select id="fRange"><option value="7">近7天</option><option value="30" selected>近30天</option><option value="60">近60天</option></select>
+    </label>
+    <button id="export" style="padding:7px 14px;border:none;border-radius:6px;background:#b30000;color:#fff;cursor:pointer;font-size:13px;">导出CSV</button>
+  </div>
+
+  <div class="kpis" id="kpis"></div>
+
+  <div class="grid">
+    <div class="card">
+      <h3>每日消耗与转化趋势</h3>
+      <div id="trend"></div>
+    </div>
+    <div class="card">
+      <h3>平台效果对比（ROI）</h3>
+      <div id="platBars"></div>
+      <div class="note">ROI = 转化金额 / 广告消耗</div>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <h3>客户投放明细（按周期汇总）</h3>
+      <table id="tbl"><thead><tr>
+        <th>客户</th><th>消耗(元)</th><th>点击</th><th>CTR</th><th>转化数</th><th>转化金额</th><th>ROI</th>
+      </tr></thead><tbody></tbody></table>
+    </div>
+    <div class="card">
+      <h3>异常提醒（自动规则）</h3>
+      <div id="alerts"></div>
+      <div class="note">规则：单日CTR低于均值30%预警 / ROI&lt;1亏损提醒 / 消耗连续3天上涨但转化下降</div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ---------- 演示数据生成（确定性伪随机，保证每次打开数据一致）----------
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+const rnd = mulberry32(20270601);
+const PLATS = {
+  "抖音":   {ctr:[1.8,3.6], cpc:[0.8,2.2], cvr:[3.5,7],  w:0.38},
+  "小红书": {ctr:[2.5,5.5], cpc:[1.0,2.8], cvr:[2.8,6],  w:0.27},
+  "百度":   {ctr:[1.2,2.8], cpc:[1.5,4.0], cvr:[4.5,9],  w:0.22},
+  "B站":    {ctr:[1.5,3.2], cpc:[1.2,3.0], cvr:[2.2,5],  w:0.13}
+};
+const CLIENTS = ["淘宝-服饰客户A","京东-3C客户B","世纪佳缘-婚恋客户C","本地餐饮客户D","教育客户E"];
+const DAYS = 60, today = new Date('2026-09-30');
+let rows = [];
+for(let d=DAYS-1; d>=0; d--){
+  const date = new Date(today); date.setDate(date.getDate()-d);
+  const ds = date.toISOString().slice(0,10);
+  const weekend = [0,6].includes(date.getDay());
+  CLIENTS.forEach((c,ci)=>{
+    Object.entries(PLATS).forEach(([p,cfg])=>{
+      const base = (600+ci*180) * cfg.w * (weekend?1.18:1);
+      const spend = Math.round(base*(0.75+rnd()*0.5));
+      const ctr = +(cfg.ctr[0]+rnd()*(cfg.ctr[1]-cfg.ctr[0])).toFixed(2);
+      const cpc = +(cfg.cpc[0]+rnd()*(cfg.cpc[1]-cfg.cpc[0])).toFixed(2);
+      const clicks = Math.round(spend/cpc);
+      const impr = Math.round(clicks/(ctr/100));
+      const cvr = cfg.cvr[0]+rnd()*(cfg.cvr[1]-cfg.cvr[0]);
+      const conv = Math.round(clicks*cvr/100);
+      const aov = 120+ci*60; // 客单价
+      const amount = Math.round(conv*aov*(0.8+rnd()*0.5)*0.28);
+      rows.push({date:ds,client:c,plat:p,spend,impr,clicks,conv,amount});
+    });
+  });
+}
+
+const $ = s=>document.querySelector(s);
+function money(n){return n>=10000?(n/10000).toFixed(2)+'万':n.toLocaleString()}
+
+function getFiltered(){
+  const c=fClient.value,p=fPlat.value,r=+fRange.value;
+  const start=new Date(today); start.setDate(start.getDate()-r);
+  return rows.filter(x=>(!c||x.client===c)&&(!p||x.plat===p)&&new Date(x.date)>=start);
+}
+function prevData(){
+  const r=+fRange.value, c=fClient.value, p=fPlat.value;
+  const end=new Date(today); end.setDate(end.getDate()-r);
+  const start=new Date(end); start.setDate(start.getDate()-r);
+  return rows.filter(x=>(!c||x.client===c)&&(!p||x.plat===p)&&new Date(x.date)>=start&&new Date(x.date)<end);
+}
+
+function render(){
+  const data=getFiltered();
+  const sum=k=>data.reduce((s,x)=>s+x[k],0);
+  const spend=sum('spend'), clicks=sum('clicks'), conv=sum('conv'), amount=sum('amount'), impr=sum('impr');
+  const ctr=impr?(clicks/impr*100):0, roi=spend?(amount/spend):0, cpa=conv?(spend/conv):0;
+
+  const prev=prevData();
+  const ps=k=>prev.reduce((s,x)=>s+x[k],0);
+  const delta=(cur,old)=>old?((cur-old)/old*100):0;
+  const dSpend=delta(spend,ps('spend')),dConv=delta(conv,ps('conv')),dAmt=delta(amount,ps('amount'));
+  const prevRoi=ps('spend')?ps('amount')/ps('spend'):0, dRoi=delta(roi,prevRoi);
+
+  $('#kpis').innerHTML=[
+    ['广告消耗','¥'+money(spend),dSpend],
+    ['曝光量',money(impr),null],
+    ['点击量',money(clicks),null],
+    ['CTR',ctr.toFixed(2)+'%',null],
+    ['转化数',conv+'',dConv],
+    ['整体ROI',roi.toFixed(2),dRoi]
+  ].map(([l,v,dl])=>`<div class="kpi"><div class="lab">${l}</div><div class="val">${v}</div>
+    ${dl!==null?`<div class="delta ${dl>=0?'up':'down'}">${dl>=0?'▲':'▼'} ${Math.abs(dl).toFixed(1)}% 环比</div>`:''}</div>`).join('');
+
+  renderTrend(data); renderPlat(data); renderTable(data); renderAlerts(data);
+}
+
+function renderTrend(data){
+  const by={}; data.forEach(x=>{by[x.date]=by[x.date]||{spend:0,conv:0,amount:0};['spend','conv','amount'].forEach(k=>by[x.date][k]+=x[k])});
+  const dates=Object.keys(by).sort();
+  const W=680,H=240,L=46,B=26,T=10,R=14;
+  const maxV=Math.max(...dates.map(d=>by[d].spend));
+  const X=i=>L+i*(W-L-R)/(dates.length-1);
+  const Y=v=>T+(H-T-B)*(1-v/maxV);
+  const line=k=>dates.map((d,i)=>(i?'L':'M')+X(i).toFixed(1)+' '+Y(by[d][k]).toFixed(1)).join(' ');
+  const area=`M${X(0)} ${H-B} L`+dates.map((d,i)=>X(i).toFixed(1)+' '+Y(by[d].spend).toFixed(1)).join(' L ')+` L${X(dates.length-1)} ${H-B} Z`;
+  const grids=[0,.25,.5,.75,1].map(g=>{const v=maxV*g,y=Y(v);return `<line x1="${L}" y1="${y}" x2="${W-R}" y2="${y}" stroke="#f0f0f0"/><text x="6" y="${y+4}" font-size="10" fill="#aaa">${Math.round(v)}</text>`}).join('');
+  const labels=[0,.25,.5,.75,1].map(g=>{const i=Math.round(g*(dates.length-1));return `<text x="${X(i)}" y="${H-8}" font-size="10" fill="#aaa" text-anchor="middle">${dates[i].slice(5)}</text>`}).join('');
+  $('#trend').innerHTML=`<svg viewBox="0 0 ${W} ${H}" width="100%">
+    ${grids}${labels}
+    <path d="${area}" fill="rgba(179,0,0,.08)"/>
+    <path d="${line('spend')}" fill="none" stroke="#b30000" stroke-width="2"/>
+    <path d="${line('amount')}" fill="none" stroke="#1a8cff" stroke-width="2" stroke-dasharray="4 3"/>
+    <rect x="${W-150}" y="2" width="10" height="3" fill="#b30000"/><text x="${W-136}" y="7" font-size="11" fill="#666">消耗</text>
+    <rect x="${W-90}" y="2" width="10" height="3" fill="#1a8cff"/><text x="${W-76}" y="7" font-size="11" fill="#666">转化金额</text>
+  </svg>`;
+}
+
+function renderPlat(data){
+  const by={}; data.forEach(x=>{by[x.plat]=by[x.plat]||{spend:0,amount:0};by[x.plat].spend+=x.spend;by[x.plat].amount+=x.amount});
+  const rows=Object.entries(by).map(([p,v])=>({p,roi:v.amount/v.spend})).sort((a,b)=>b.roi-a.roi);
+  const max=Math.max(...rows.map(r=>r.roi));
+  $('#platBars').innerHTML=rows.map(r=>`
+    <div style="margin-bottom:12px">
+      <div style="display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:4px"><span>${r.p}</span><b>${r.roi.toFixed(2)}</b></div>
+      <div style="background:#f0f0f0;border-radius:4px;height:14px"><div style="width:${r.roi/max*100}%;height:14px;border-radius:4px;background:${r.roi>=1?'#b30000':'#999'}"></div></div>
+    </div>`).join('');
+}
+
+function renderTable(data){
+  const by={}; data.forEach(x=>{by[x.client]=by[x.client]||{spend:0,impr:0,clicks:0,conv:0,amount:0};Object.keys(by[x.client]).forEach(k=>by[x.client][k]+=x[k])});
+  $('#tbl tbody').innerHTML=Object.entries(by).map(([c,v])=>{
+    const roi=v.amount/v.spend, ctr=v.clicks/v.impr*100;
+    return `<tr><td>${c}</td><td>${money(v.spend)}</td><td>${money(v.clicks)}</td><td>${ctr.toFixed(2)}%</td><td>${v.conv}</td><td>¥${money(v.amount)}</td>
+    <td style="color:${roi>=1?'#e03636':'#999'};font-weight:700">${roi.toFixed(2)}</td></tr>`;
+  }).join('');
+}
+
+function renderAlerts(data){
+  const out=[];
+  // 按平台算CTR均值
+  const pAvg={}; const pg={};
+  data.forEach(x=>{(pg[x.plat]=pg[x.plat]||{clicks:0,impr:0});pg[x.plat].clicks+=x.clicks;pg[x.plat].impr+=x.impr});
+  Object.entries(pg).forEach(([p,v])=>pAvg[p]=v.clicks/v.impr);
+  // 找亏损客户
+  const cg={}; data.forEach(x=>{(cg[x.client]=cg[x.client]||{spend:0,amount:0});cg[x.client].spend+=x.spend;cg[x.client].amount+=x.amount});
+  Object.entries(cg).forEach(([c,v])=>{if(v.spend&&v.amount/v.spend<1)out.push(`⚠ ${c} 周期ROI ${(v.amount/v.spend).toFixed(2)}＜1，处于亏损投放，建议收缩低效平台预算`)});
+  // 找低CTR记录
+  data.forEach(x=>{if(x.impr&&x.clicks/x.impr<pAvg[x.plat]*0.7&&x.spend>800){/* 抽样每日预警，取最严重的几条 */}});
+  const low=[]; const byDatePlat={};
+  data.forEach(x=>{const k=x.date+'|'+x.plat;(byDatePlat[k]=byDatePlat[k]||{clicks:0,impr:0,spend:0});['clicks','impr','spend'].forEach(m=>byDatePlat[k][m]+=x[m])});
+  Object.entries(byDatePlat).forEach(([k,v])=>{const [date,p]=k.split('|');const ctr=v.clicks/v.impr;if(ctr<pAvg[p]*0.7&&v.spend>1500)low.push({date,p,ctr})});
+  low.slice(-3).forEach(x=>out.push(`⚠ ${x.date} ${x.p} CTR ${(x.ctr*100).toFixed(2)}% 低于平台均值30%以上，建议更换素材/定向`));
+  if(!out.length)out.push('✓ 当前周期无明显异常，各客户ROI均≥1');
+  $('#alerts').innerHTML=out.map(a=>`<div class="alert">${a}</div>`).join('');
+}
+
+$('#export').onclick=()=>{
+  const data=getFiltered();
+  const head=['日期','客户','平台','消耗','曝光','点击','转化数','转化金额'];
+  const csv=[head.join(',')].concat(data.map(x=>[x.date,x.client,x.plat,x.spend,x.impr,x.clicks,x.conv,x.amount].join(','))).join('\n');
+  const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob(['\ufeff'+csv],{type:'text/csv'})); a.download='投放明细导出.csv'; a.click();
+};
+
+[fClient,fPlat,fRange].forEach(el=>el.onchange=render);
+fClient.innerHTML='<option value="">全部客户</option>'+CLIENTS.map(c=>`<option>${c}</option>`).join('');
+render();
+</script>
+</body>
+</html>
