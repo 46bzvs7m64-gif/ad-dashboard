@@ -3,39 +3,142 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>多平台广告投放数据看板</title>
+<title>多平台广告投放数据大屏</title>
 <style>
   * { margin:0; padding:0; box-sizing:border-box; }
-  body { font-family:"Microsoft YaHei",sans-serif; background:#f4f5f7; color:#222; padding:20px; }
-  .wrap { max-width:1200px; margin:0 auto; }
-  h1 { font-size:20px; margin-bottom:4px; }
-  .sub { color:#888; font-size:12px; margin-bottom:16px; }
-  .bar { display:flex; flex-wrap:wrap; gap:10px; margin-bottom:16px; align-items:center; }
-  select, input { padding:7px 10px; border:1px solid #d0d0d0; border-radius:6px; font-size:13px; background:#fff; }
-  .kpis { display:grid; grid-template-columns:repeat(6,1fr); gap:12px; margin-bottom:16px; }
-  .kpi { background:#fff; border-radius:10px; padding:14px; box-shadow:0 1px 3px rgba(0,0,0,.06); }
-  .kpi .lab { font-size:12px; color:#888; margin-bottom:6px; }
-  .kpi .val { font-size:20px; font-weight:700; }
-  .kpi .delta { font-size:11px; margin-top:4px; }
-  .up { color:#e03636; } .down { color:#1aad4a; }
-  .grid { display:grid; grid-template-columns:1.4fr 1fr; gap:12px; margin-bottom:16px; }
-  .card { background:#fff; border-radius:10px; padding:16px; box-shadow:0 1px 3px rgba(0,0,0,.06); }
-  .card h3 { font-size:14px; margin-bottom:12px; }
-  table { width:100%; border-collapse:collapse; font-size:12.5px; }
-  th,td { padding:8px 6px; text-align:right; border-bottom:1px solid #f0f0f0; }
-  th { color:#888; font-weight:400; background:#fafafa; }
+  :root{
+    --cy:#22d3ee; --cy-d:#0e9db4;
+    --panel:rgba(255,255,255,.04); --line:rgba(255,255,255,.08);
+    --txt:#e8f0fb; --sub:rgba(255,255,255,.55); --faint:rgba(255,255,255,.35);
+    --red:#ff5c5c; --org:#f5a623; --grn:#34d399;
+  }
+  html{ background:#0b1220; }
+  html,body{ min-height:100%; }
+  body{
+    font-family:"Microsoft YaHei",sans-serif; color:var(--txt); position:relative;
+    background:
+      radial-gradient(900px 480px at 82% -12%, rgba(34,211,238,.07), transparent 60%),
+      radial-gradient(700px 420px at -8% 108%, rgba(14,157,180,.06), transparent 55%),
+      linear-gradient(160deg,#0b1220,#101a2e);
+    min-height:100vh; padding:20px;
+  }
+  /* 细微网格纹理 */
+  body::before{
+    content:""; position:absolute; inset:0; pointer-events:none; z-index:0;
+    background-image:
+      linear-gradient(rgba(255,255,255,.028) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,.028) 1px, transparent 1px);
+    background-size:38px 38px;
+  }
+  .wrap { max-width:1200px; margin:0 auto; position:relative; z-index:1; }
+
+  /* 顶部抬头 */
+  .top{ display:flex; justify-content:space-between; align-items:flex-end; gap:12px; flex-wrap:wrap;
+        padding-bottom:14px; margin-bottom:16px; border-bottom:1px solid var(--line); position:relative; }
+  .top::after{ content:""; position:absolute; left:0; bottom:-1px; width:230px; height:2px;
+        background:linear-gradient(90deg,var(--cy),transparent); }
+  .sysname{ font-size:22px; font-weight:800; letter-spacing:2px;
+        background:linear-gradient(90deg,#ffffff,#7fe4f5);
+        -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; color:transparent; }
+  .sub{ color:var(--sub); font-size:12px; margin-top:6px; }
+  .uptime{ font-size:12px; color:var(--sub); font-variant-numeric:tabular-nums;
+        padding:5px 12px; border:1px solid var(--line); border-radius:8px; background:var(--panel); white-space:nowrap; }
+
+  /* 筛选条 */
+  .bar { display:flex; flex-wrap:wrap; gap:10px; margin-bottom:16px; align-items:center; font-size:13px; color:var(--sub); }
+  select, input { padding:7px 10px; border:1px solid rgba(255,255,255,.14); border-radius:8px; font-size:13px;
+        background:#141f36; color:var(--txt); outline:none; transition:border-color .2s; }
+  select:hover, input:hover { border-color:rgba(34,211,238,.45); }
+  option { background:#141f36; color:var(--txt); }
+  .btn{ padding:8px 16px; border:none; border-radius:8px; cursor:pointer; font-size:13px; font-weight:700; color:#04222b;
+        background:linear-gradient(135deg,var(--cy),var(--cy-d)); box-shadow:0 0 14px rgba(34,211,238,.28); transition:filter .2s; }
+  .btn:hover{ filter:brightness(1.12); }
+
+  /* KPI 卡 */
+  .kpis { display:grid; grid-template-columns:repeat(6,1fr); gap:12px; margin-bottom:14px; }
+  .kpi{ position:relative; background:var(--panel); border:1px solid var(--line); border-radius:12px;
+        padding:14px 14px 12px; overflow:hidden; transition:border-color .2s, background .2s, box-shadow .2s; }
+  .kpi:hover{ border-color:rgba(34,211,238,.4); background:rgba(255,255,255,.065); box-shadow:0 0 22px rgba(34,211,238,.1); }
+  .kpi::after{ content:""; position:absolute; top:0; left:0; right:0; height:1px;
+        background:linear-gradient(90deg, rgba(34,211,238,.5), transparent 65%); }
+  .kpi .lab{ font-size:12px; color:var(--sub); }
+  .kpi .tagr{ position:absolute; top:12px; right:12px; font-size:10px; color:var(--faint);
+        border:1px solid rgba(255,255,255,.14); border-radius:8px; padding:1px 6px; }
+  .kpi .val{ font-size:22px; font-weight:800; margin-top:7px; font-variant-numeric:tabular-nums; letter-spacing:.3px;
+        background:linear-gradient(180deg,#ffffff,#9be3f2);
+        -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; color:transparent; }
+  .kpi .delta{ font-size:11px; margin-top:5px; font-variant-numeric:tabular-nums; }
+  .up { color:#ff6b6b; } .down { color:var(--grn); }
+
+  /* 面板 */
+  .grid { display:grid; grid-template-columns:1.4fr 1fr; gap:12px; margin-bottom:14px; }
+  .grid > .card{ min-width:0; }
+  .card{ background:var(--panel); border:1px solid var(--line); border-radius:13px; padding:16px 18px;
+        transition:border-color .2s, box-shadow .2s; }
+  .card:hover{ border-color:rgba(34,211,238,.3); box-shadow:0 0 26px rgba(34,211,238,.07); }
+  .card h3{ font-size:14px; font-weight:600; display:flex; align-items:center; gap:8px; margin-bottom:12px;
+        color:#f2f7ff; letter-spacing:1px; }
+  .card h3::before{ content:""; width:3px; height:13px; border-radius:2px; flex:none;
+        background:linear-gradient(180deg,var(--cy),var(--cy-d)); box-shadow:0 0 6px rgba(34,211,238,.6); }
+  .note{ font-size:11px; color:var(--faint); margin-top:10px; line-height:1.6; }
+  .scrollx{ overflow-x:auto; }
+  .scrollx svg{ min-width:600px; }
+  .empty{ color:var(--faint); font-size:12px; text-align:center; padding:24px 0; }
+
+  /* 平台 ROI 条 */
+  .prow{ margin-bottom:12px; }
+  .phead{ display:flex; justify-content:space-between; font-size:12.5px; margin-bottom:5px; }
+  .phead span{ color:rgba(255,255,255,.82); }
+  .phead b{ font-variant-numeric:tabular-nums; color:var(--cy); }
+  .pbar{ height:12px; background:rgba(255,255,255,.07); border-radius:6px; overflow:hidden; }
+  .pfill{ height:12px; border-radius:6px; background:linear-gradient(90deg,var(--cy-d),var(--cy)); box-shadow:0 0 10px rgba(34,211,238,.35); }
+  .pfill.bad{ background:linear-gradient(90deg,#c2410c,var(--org)); box-shadow:0 0 10px rgba(245,166,35,.35); }
+
+  /* 预算消耗进度 */
+  .budrow{ margin-bottom:13px; }
+  .budrow:last-child{ margin-bottom:0; }
+  .budhead{ display:flex; justify-content:space-between; align-items:baseline; font-size:12.5px; margin-bottom:5px; }
+  .bname{ color:rgba(255,255,255,.85); }
+  .bpct{ font-weight:700; font-variant-numeric:tabular-nums; font-size:13.5px; }
+  .budtrack{ height:10px; background:rgba(255,255,255,.07); border-radius:5px; overflow:hidden; }
+  .budfill{ height:10px; border-radius:5px; }
+  .budfoot{ font-size:11px; margin-top:4px; color:rgba(255,255,255,.5); font-variant-numeric:tabular-nums; }
+
+  /* 明细表 */
+  table { width:100%; min-width:540px; border-collapse:collapse; font-size:12.5px; font-variant-numeric:tabular-nums; }
+  th,td { padding:8px 6px; text-align:right; border-bottom:1px solid rgba(255,255,255,.06); }
+  th { color:var(--sub); font-weight:400; background:rgba(255,255,255,.03); }
   th:first-child,td:first-child { text-align:left; }
-  .tag { display:inline-block; padding:2px 8px; border-radius:10px; font-size:11px; color:#fff; }
-  .alert { font-size:12.5px; padding:8px 10px; border-radius:6px; margin-bottom:8px; background:#fff7f0; border-left:3px solid #f5a623; }
-  .note { font-size:11px; color:#aaa; margin-top:10px; }
+  tbody tr{ transition:background .15s; }
+  tbody tr:hover{ background:rgba(34,211,238,.05); }
+
+  .tag { display:inline-block; padding:2px 8px; border-radius:10px; font-size:11px; color:#04222b; }
+  .alert { font-size:12.5px; padding:8px 10px; border-radius:8px; margin-bottom:8px; line-height:1.6;
+        background:rgba(245,166,35,.08); border-left:3px solid var(--org); color:#ffd9a8; }
+  .alert.ok{ background:rgba(52,211,153,.08); border-left-color:var(--grn); color:#a7f3d0; }
+
   svg { display:block; }
-  @media(max-width:900px){ .kpis{grid-template-columns:repeat(2,1fr)} .grid{grid-template-columns:1fr} }
+  @media(max-width:900px){
+    .kpis{grid-template-columns:repeat(2,1fr)} .grid{grid-template-columns:1fr}
+    .scrollx svg{ min-width:540px; }
+  }
+  @media(max-width:480px){
+    body{ padding:12px; }
+    .sysname{ font-size:18px; letter-spacing:1px; }
+    .kpi .val{ font-size:19px; }
+    .card{ padding:14px; }
+  }
 </style>
 </head>
 <body>
 <div class="wrap">
-  <h1>多平台广告投放数据看板</h1>
-  <div class="sub">统一口径汇总抖音 / 小红书 / 百度 / B站投放数据 · 演示数据（字段结构按真实投放后台设计，可替换为导出报表）</div>
+  <header class="top">
+    <div>
+      <h1 class="sysname">多平台广告投放数据大屏</h1>
+      <div class="sub">统一口径汇总抖音 / 小红书 / 百度 / B站投放数据 · 演示数据（字段结构按真实投放后台设计，可替换为导出报表）</div>
+    </div>
+    <div class="uptime">数据更新时间：2026-10-07 08:00（演示）</div>
+  </header>
 
   <div class="bar">
     <label>客户 <select id="fClient"></select></label>
@@ -43,7 +146,7 @@
     <label>周期
       <select id="fRange"><option value="7">近7天</option><option value="30" selected>近30天</option><option value="60">近60天</option></select>
     </label>
-    <button id="export" style="padding:7px 14px;border:none;border-radius:6px;background:#b30000;color:#fff;cursor:pointer;font-size:13px;">导出CSV</button>
+    <button id="export" class="btn">导出CSV</button>
   </div>
 
   <div class="kpis" id="kpis"></div>
@@ -51,7 +154,7 @@
   <div class="grid">
     <div class="card">
       <h3>每日消耗与转化趋势</h3>
-      <div id="trend"></div>
+      <div id="trend" class="scrollx"></div>
     </div>
     <div class="card">
       <h3>平台效果对比（ROI）</h3>
@@ -62,10 +165,23 @@
 
   <div class="grid">
     <div class="card">
+      <h3>客户 ROI 排行</h3>
+      <div id="roiRank" class="scrollx"></div>
+      <div class="note">按所选周期汇总 · ROI 低于 1.5 的客户以橙色标出并标记待优化</div>
+    </div>
+    <div class="card">
+      <h3>预算消耗进度</h3>
+      <div id="budget"></div>
+      <div class="note">月预算为演示扩展字段（基准口径：月度预算 = 当月消耗 / 0.72 校准）；已消耗取近30天（月度口径），随客户 / 平台筛选联动</div>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="card">
       <h3>客户投放明细（按周期汇总）</h3>
-      <table id="tbl"><thead><tr>
+      <div class="scrollx"><table id="tbl"><thead><tr>
         <th>客户</th><th>消耗(元)</th><th>点击</th><th>CTR</th><th>转化数</th><th>转化金额</th><th>ROI</th>
-      </tr></thead><tbody></tbody></table>
+      </tr></thead><tbody></tbody></table></div>
     </div>
     <div class="card">
       <h3>异常提醒（自动规则）</h3>
@@ -112,6 +228,15 @@ for(let d=DAYS-1; d>=0; d--){
 const $ = s=>document.querySelector(s);
 function money(n){return n>=10000?(n/10000).toFixed(2)+'万':n.toLocaleString()}
 
+// ---------- 月度预算（演示扩展字段）：基准口径"月度预算=当月消耗/0.72"，再按各客户预算规划差异校准 ----------
+const MONTH_BUDGET = (()=>{
+  const pace = {"淘宝-服饰客户A":0.94,"京东-3C客户B":0.83,"世纪佳缘-婚恋客户C":0.72,"本地餐饮客户D":0.64,"教育客户E":0.91};
+  const m = {}; const start = new Date(today); start.setDate(start.getDate()-30);
+  rows.forEach(x=>{ if(new Date(x.date)>=start) m[x.client]=(m[x.client]||0)+x.spend; });
+  const out = {}; Object.keys(pace).forEach(c=>{ out[c]=Math.round(m[c]/pace[c]); });
+  return out;
+})();
+
 function getFiltered(){
   const c=fClient.value,p=fPlat.value,r=+fRange.value;
   const start=new Date(today); start.setDate(start.getDate()-r);
@@ -124,6 +249,7 @@ function prevData(){
   return rows.filter(x=>(!c||x.client===c)&&(!p||x.plat===p)&&new Date(x.date)>=start&&new Date(x.date)<end);
 }
 
+let kpiAnimated = false;
 function render(){
   const data=getFiltered();
   const sum=k=>data.reduce((s,x)=>s+x[k],0);
@@ -136,17 +262,31 @@ function render(){
   const dSpend=delta(spend,ps('spend')),dConv=delta(conv,ps('conv')),dAmt=delta(amount,ps('amount'));
   const prevRoi=ps('spend')?ps('amount')/ps('spend'):0, dRoi=delta(roi,prevRoi);
 
-  $('#kpis').innerHTML=[
-    ['广告消耗','¥'+money(spend),dSpend],
-    ['曝光量',money(impr),null],
-    ['点击量',money(clicks),null],
-    ['CTR',ctr.toFixed(2)+'%',null],
-    ['转化数',conv+'',dConv],
-    ['整体ROI',roi.toFixed(2),dRoi]
-  ].map(([l,v,dl])=>`<div class="kpi"><div class="lab">${l}</div><div class="val">${v}</div>
-    ${dl!==null?`<div class="delta ${dl>=0?'up':'down'}">${dl>=0?'▲':'▼'} ${Math.abs(dl).toFixed(1)}% 环比</div>`:''}</div>`).join('');
+  // KPI 卡：num 参与进入动画计数，final 为精确终值
+  const kpiItems=[
+    {lab:'广告消耗',unit:'元',num:spend,fmt:v=>'¥'+money(Math.round(v)),final:'¥'+money(spend),dl:dSpend},
+    {lab:'曝光量',unit:'次',num:impr,fmt:v=>money(Math.round(v)),final:money(impr),dl:null},
+    {lab:'点击量',unit:'次',num:clicks,fmt:v=>money(Math.round(v)),final:money(clicks),dl:null},
+    {lab:'CTR',unit:'%',num:ctr,fmt:v=>v.toFixed(2)+'%',final:ctr.toFixed(2)+'%',dl:null},
+    {lab:'转化数',unit:'个',num:conv,fmt:v=>Math.round(v)+'',final:conv+'',dl:dConv},
+    {lab:'整体ROI',unit:'倍',num:roi,fmt:v=>v.toFixed(2),final:roi.toFixed(2),dl:dRoi}
+  ];
+  $('#kpis').innerHTML=kpiItems.map(k=>`<div class="kpi"><span class="tagr">${k.unit}</span>
+    <div class="lab">${k.lab}</div><div class="val">${k.final}</div>
+    ${k.dl!==null?`<div class="delta ${k.dl>=0?'up':'down'}">${k.dl>=0?'▲':'▼'} ${Math.abs(k.dl).toFixed(1)}% 环比</div>`:''}</div>`).join('');
+  if(!kpiAnimated){ // 进入页面时一次性数字滚动（500ms，不循环）
+    kpiAnimated=true;
+    const els=[...document.querySelectorAll('#kpis .val')], t0=performance.now(), D=500;
+    const tick=t=>{
+      const p=Math.min(1,(t-t0)/D), e=1-Math.pow(1-p,3);
+      els.forEach((el,i)=>{ el.textContent=kpiItems[i].fmt(kpiItems[i].num*e); });
+      if(p<1) requestAnimationFrame(tick);
+      else els.forEach((el,i)=>{ el.textContent=kpiItems[i].final; });
+    };
+    requestAnimationFrame(tick);
+  }
 
-  renderTrend(data); renderPlat(data); renderTable(data); renderAlerts(data);
+  renderTrend(data); renderPlat(data); renderClientRoi(data); renderBudget(); renderTable(data); renderAlerts(data);
 }
 
 function niceMax(v){
@@ -169,22 +309,26 @@ function renderTrend(data){
   const area=`M${X(0)} ${T+plotH} L`+dates.map((d,i)=>X(i).toFixed(1)+' '+Ys(by[d].spend).toFixed(1)).join(' L ')+` L${X(dates.length-1)} ${T+plotH} Z`;
   const sLine=dates.map((d,i)=>(i?'L':'M')+X(i).toFixed(1)+' '+Ys(by[d].spend).toFixed(1)).join(' ');
   const aLine=dates.map((d,i)=>(i?'L':'M')+X(i).toFixed(1)+' '+Ya(by[d].amount).toFixed(1)).join(' ');
-  const dots=dates.map((d,i)=>`<circle cx="${X(i).toFixed(1)}" cy="${Ya(by[d].amount).toFixed(1)}" r="2.1" fill="#0a6ed1" stroke="#fff" stroke-width=".8"/>`).join('');
+  const dots=dates.map((d,i)=>`<circle cx="${X(i).toFixed(1)}" cy="${Ya(by[d].amount).toFixed(1)}" r="2.1" fill="#22d3ee" stroke="#0b1220" stroke-width=".8"/>`).join('');
   const grids=[0,.25,.5,.75,1].map(g=>{const y=T+plotH*g;
-    return `<line x1="${L}" y1="${y}" x2="${W-R+4}" y2="${y}" stroke="#f0f0f0"/>
-    <text x="6" y="${y+3.5}" font-size="10" fill="#b30000" opacity=".75">${Math.round(maxS*(1-g))}</text>
-    <text x="${W-4}" y="${y+3.5}" font-size="10" fill="#0a6ed1" text-anchor="end" opacity=".9">${Math.round(maxA*(1-g))}</text>`}).join('');
-  const labels=[0,.25,.5,.75,1].map(g=>{const i=Math.round(g*(dates.length-1));return `<text x="${X(i)}" y="${H-8}" font-size="10" fill="#aaa" text-anchor="middle">${dates[i].slice(5)}</text>`}).join('');
+    return `<line x1="${L}" y1="${y}" x2="${W-R+4}" y2="${y}" stroke="rgba(255,255,255,0.06)"/>
+    <text x="6" y="${y+3.5}" font-size="10" fill="rgba(255,150,150,0.78)">${Math.round(maxS*(1-g))}</text>
+    <text x="${W-4}" y="${y+3.5}" font-size="10" fill="rgba(34,211,238,0.8)" text-anchor="end">${Math.round(maxA*(1-g))}</text>`}).join('');
+  const labels=[0,.25,.5,.75,1].map(g=>{const i=Math.round(g*(dates.length-1));return `<text x="${X(i)}" y="${H-8}" font-size="10" fill="rgba(255,255,255,0.45)" text-anchor="middle">${dates[i].slice(5)}</text>`}).join('');
   $('#trend').innerHTML=`<svg viewBox="0 0 ${W} ${H}" width="100%">
+    <defs>
+      <filter id="gRed" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0" dy="0" stdDeviation="2.6" flood-color="#ff5c5c" flood-opacity="0.5"/></filter>
+      <filter id="gCy" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0" dy="0" stdDeviation="2.6" flood-color="#22d3ee" flood-opacity="0.55"/></filter>
+    </defs>
     ${grids}${labels}
-    <path d="${area}" fill="rgba(179,0,0,.08)"/>
-    <path d="${sLine}" fill="none" stroke="#b30000" stroke-width="2"/>
-    <path d="${aLine}" fill="none" stroke="#0a6ed1" stroke-width="2.2"/>
+    <path d="${area}" fill="rgba(255,92,92,0.09)"/>
+    <path d="${sLine}" fill="none" stroke="#ff5c5c" stroke-width="2" filter="url(#gRed)"/>
+    <path d="${aLine}" fill="none" stroke="#22d3ee" stroke-width="2.2" filter="url(#gCy)"/>
     ${dots}
-    <line x1="${W-232}" y1="11" x2="${W-214}" y2="11" stroke="#b30000" stroke-width="2.5"/>
-    <text x="${W-210}" y="15" font-size="11" fill="#555">消耗(左轴·元)</text>
-    <circle cx="${W-143}" cy="11" r="2.4" fill="#0a6ed1" stroke="#fff" stroke-width=".8"/>
-    <text x="${W-136}" y="15" font-size="11" fill="#555">转化金额(右轴·元)</text>
+    <line x1="${W-232}" y1="11" x2="${W-214}" y2="11" stroke="#ff5c5c" stroke-width="2.5"/>
+    <text x="${W-210}" y="15" font-size="11" fill="rgba(255,255,255,0.72)">消耗(左轴·元)</text>
+    <circle cx="${W-143}" cy="11" r="2.4" fill="#22d3ee" stroke="#0b1220" stroke-width=".8"/>
+    <text x="${W-136}" y="15" font-size="11" fill="rgba(255,255,255,0.72)">转化金额(右轴·元)</text>
   </svg>`;
 }
 
@@ -193,10 +337,56 @@ function renderPlat(data){
   const rows=Object.entries(by).map(([p,v])=>({p,roi:v.amount/v.spend})).sort((a,b)=>b.roi-a.roi);
   const max=Math.max(...rows.map(r=>r.roi));
   $('#platBars').innerHTML=rows.map(r=>`
-    <div style="margin-bottom:12px">
-      <div style="display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:4px"><span>${r.p}</span><b>${r.roi.toFixed(2)}</b></div>
-      <div style="background:#f0f0f0;border-radius:4px;height:14px"><div style="width:${r.roi/max*100}%;height:14px;border-radius:4px;background:${r.roi>=1?'#b30000':'#999'}"></div></div>
+    <div class="prow">
+      <div class="phead"><span>${r.p}</span><b>${r.roi.toFixed(2)}</b></div>
+      <div class="pbar"><div class="pfill ${r.roi<1?'bad':''}" style="width:${(r.roi/max*100).toFixed(1)}%"></div></div>
     </div>`).join('');
+}
+
+function renderClientRoi(data){
+  const cg={}; data.forEach(x=>{(cg[x.client]=cg[x.client]||{spend:0,amount:0});cg[x.client].spend+=x.spend;cg[x.client].amount+=x.amount});
+  const list=Object.entries(cg).map(([c,v])=>({c,roi:v.spend?v.amount/v.spend:0})).sort((a,b)=>b.roi-a.roi);
+  if(!list.length){ $('#roiRank').innerHTML='<div class="empty">当前筛选无数据</div>'; return; }
+  const max=Math.max(...list.map(r=>r.roi),1);
+  const W=680,L=142,R=112,rowH=42,H=list.length*rowH+8;
+  const barW=W-L-R;
+  let s=`<svg viewBox="0 0 ${W} ${H}" width="100%">
+    <defs>
+      <linearGradient id="barCy" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#0e9db4"/><stop offset="1" stop-color="#22d3ee"/></linearGradient>
+      <filter id="gBar" x="-20%" y="-60%" width="140%" height="220%"><feDropShadow dx="0" dy="0" stdDeviation="3" flood-color="#22d3ee" flood-opacity="0.35"/></filter>
+    </defs>`;
+  list.forEach((r,i)=>{
+    const y=i*rowH+rowH/2+2, bw=Math.max(2,r.roi/max*barW), low=r.roi<1.5;
+    const xEnd=L+barW;
+    s+=`<text x="${L-12}" y="${y+4}" font-size="11.5" fill="rgba(255,255,255,0.82)" text-anchor="end">${r.c}</text>
+    <rect x="${L}" y="${y-7}" width="${barW}" height="14" rx="7" fill="rgba(255,255,255,0.05)"/>
+    <rect x="${L}" y="${y-7}" width="${bw.toFixed(1)}" height="14" rx="7" fill="${low?'#f5a623':'url(#barCy)'}" ${low?'':'filter="url(#gBar)"'}/>
+    <text x="${xEnd+12}" y="${y+4}" font-size="12.5" font-weight="700" fill="${low?'#f5a623':'#22d3ee'}">${r.roi.toFixed(2)}</text>`;
+    if(low) s+=`<rect x="${xEnd+56}" y="${y-8}" width="50" height="16" rx="8" fill="rgba(245,166,35,0.14)" stroke="rgba(245,166,35,0.55)"/>
+    <text x="${xEnd+81}" y="${y+3.5}" font-size="9.5" fill="#f5a623" text-anchor="middle">待优化</text>`;
+  });
+  s+='</svg>';
+  $('#roiRank').innerHTML=s;
+}
+
+function renderBudget(){
+  const c=fClient.value, p=fPlat.value;
+  const start=new Date(today); start.setDate(start.getDate()-30); // 月度口径固定近30天
+  const data=rows.filter(x=>(!c||x.client===c)&&(!p||x.plat===p)&&new Date(x.date)>=start);
+  const cg={}; data.forEach(x=>{cg[x.client]=(cg[x.client]||0)+x.spend});
+  const list=Object.entries(cg).map(([cl,used])=>{const b=MONTH_BUDGET[cl]||1;return {cl,used,b,pct:used/b*100}}).sort((a,b)=>b.pct-a.pct);
+  if(!list.length){ $('#budget').innerHTML='<div class="empty">当前筛选无数据</div>'; return; }
+  $('#budget').innerHTML=list.map(r=>{
+    const lv=r.pct>90?2:(r.pct>=70?1:0);
+    const col=['#34d399','#f5a623','#ff5c5c'][lv];
+    const txt=['消耗健康，余量充足','消耗偏快，留意节奏','预算将尽，建议加投'][lv];
+    const w=Math.min(100,r.pct).toFixed(1);
+    return `<div class="budrow">
+      <div class="budhead"><span class="bname">${r.cl}</span><b class="bpct" style="color:${col}">${r.pct.toFixed(1)}%</b></div>
+      <div class="budtrack"><div class="budfill" style="width:${w}%;background:linear-gradient(90deg,${col}99,${col});box-shadow:0 0 10px ${col}55"></div></div>
+      <div class="budfoot">已消耗 ¥${money(r.used)} / 月预算 ¥${money(r.b)} · <span style="color:${col}">${txt}</span></div>
+    </div>`;
+  }).join('');
 }
 
 function renderTable(data){
@@ -204,7 +394,7 @@ function renderTable(data){
   $('#tbl tbody').innerHTML=Object.entries(by).map(([c,v])=>{
     const roi=v.amount/v.spend, ctr=v.clicks/v.impr*100;
     return `<tr><td>${c}</td><td>${money(v.spend)}</td><td>${money(v.clicks)}</td><td>${ctr.toFixed(2)}%</td><td>${v.conv}</td><td>¥${money(v.amount)}</td>
-    <td style="color:${roi>=1?'#e03636':'#999'};font-weight:700">${roi.toFixed(2)}</td></tr>`;
+    <td style="color:${roi>=1?'#22d3ee':'#ff5c5c'};font-weight:700">${roi.toFixed(2)}</td></tr>`;
   }).join('');
 }
 
@@ -224,7 +414,7 @@ function renderAlerts(data){
   Object.entries(byDatePlat).forEach(([k,v])=>{const [date,p]=k.split('|');const ctr=v.clicks/v.impr;if(ctr<pAvg[p]*0.7&&v.spend>1500)low.push({date,p,ctr})});
   low.slice(-3).forEach(x=>out.push(`⚠ ${x.date} ${x.p} CTR ${(x.ctr*100).toFixed(2)}% 低于平台均值30%以上，建议更换素材/定向`));
   if(!out.length)out.push('✓ 当前周期无明显异常，各客户ROI均≥1');
-  $('#alerts').innerHTML=out.map(a=>`<div class="alert">${a}</div>`).join('');
+  $('#alerts').innerHTML=out.map(a=>`<div class="alert ${a.startsWith('✓')?'ok':''}">${a}</div>`).join('');
 }
 
 $('#export').onclick=()=>{
